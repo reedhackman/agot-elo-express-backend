@@ -1,3 +1,4 @@
+require('dotenv').config()
 const { Pool } = require('pg')
 const getJson = require('get-json')
 const async = require('async')

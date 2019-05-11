@@ -21,4 +21,6 @@ router.get('/matchups', db.getAllMatchups)
 
 router.get('/matchups/:faction/:agenda/:oppfaction/:oppagenda', db.getSpecificMatchup)
 
+router.get('/top5faction/:faction', db.getTop5Faction)
+
 module.exports = router
