@@ -28,6 +28,7 @@ let createGamesArray = []
 let players = {}
 let matchups = {}
 let decks = {}
+let incomplete = {}
 let exclude = ['draft', 'keyforge', 'destiny', 'l5r']
 let tournamentsToExclude = []
 
@@ -48,6 +49,7 @@ pool.query('SELECT * FROM position', (err, data) => {
     populatePlayers()
     populateDecks()
     populateMatchups()
+    populateIncomplete()
   }
   console.log(new Date().toUTCString() + ' checking thejoustingpavilion in 1 minute')
   setTimeout(() => {
@@ -55,6 +57,25 @@ pool.query('SELECT * FROM position', (err, data) => {
   }, 1000 * 60 * 1)
   refresh()
 })
+
+const populateIncomplete = () => {
+  pool.query('SELECT * FROM incomplete', (err, data) => {
+    if(err){
+      console.log(err)
+      createIncompleteTable()
+    }
+    if(data.rows.length){
+      data.rows.forEach((game) => {
+        if(!(incomplete[game.game_id])){
+          incomplete[game.game_id] = {
+            tournament_id: game.tournament_id,
+            tournament_date: game.tournament_date
+          }
+        }
+      })
+    }
+  })
+}
 
 const populateMatchups = () => {
   pool.query('SELECT * FROM matchups', (err, data) => {
@@ -673,6 +694,10 @@ const processGame = (game) => {
       if(err) throw err
       console.log('incomplete game: ' + game.game_id)
     })
+    incomplete[game.game_id] = {
+      tournament_id: game.tournament_id,
+      tournament_date: game.tournament_date
+    }
     return
   }
   let winner = {}
