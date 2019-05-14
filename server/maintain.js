@@ -693,7 +693,7 @@ const processGamePlayers = (winner, loser) => {
 
 const incompleteGame = (game_id, tournament_id) => {
   createIncompleteArray.push((callback) => {
-    pool.query('INSERT INTO incomplete (game_id, tournament_id) VALUES ($1, $2)', [game_id, tournament_id], (err, data) => {
+    pool.query('INSERT INTO incomplete (game_id, tournament_id, first_checked) VALUES ($1, $2, $3)', [game_id, tournament_id, new Date()], (err, data) => {
       if(err) throw err
     })
     callback()
