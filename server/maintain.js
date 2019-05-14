@@ -35,12 +35,7 @@ let tournamentsToExclude = []
 
 pool.query('SELECT * FROM position', (err, data) => {
   if(err){
-    createPositionTable()
-    createPlayersTable()
-    createMatchupsTable()
-    createIncompleteTable()
-    createDecksTable()
-    createGamesTable()
+    createTables()
   }
   else{
     page = data.rows[0].page
@@ -63,9 +58,15 @@ const populateIncomplete = () => {
     if(err) throw err
     if(data.rows.length){
       data.rows.forEach((game) => {
-        if(!(incomplete[game.game_id])){
-          incomplete[game.game_id] = {
-            tournament_id: game.tournament_id,
+        if(!(incomplete[game.tournament_id])){
+          incomplete[game.tournament_id] = {
+            [game.game_id]: {
+              first_checked: game.first_checked
+            }
+          }
+        }
+        else{
+          incomplete[game.tournament_id][game.game_id] = {
             first_checked: game.first_checked
           }
         }
@@ -175,28 +176,7 @@ const populatePlayers = () => {
   })
 }
 
-const createGamesTable = () => {
-  pool.query('CREATE TABLE games (winner_id integer, winner_faction text, winner_agenda text, loser_id integer, loser_faction text, loser_agenda text, tournament_date date, tournament_id integer)', (err) => {
-    if(err) throw err
-    console.log('games table created in database')
-  })
-}
-
-const createDecksTable = () => {
-  pool.query('CREATE TABLE decks (faction text, agenda text, wins integer NOT NULL, losses integer NOT NULL)', (err) => {
-    if(err) throw err
-    console.log('decks table created in database')
-  })
-}
-
-const createIncompleteTable = () => {
-  pool.query('CREATE TABLE incomplete (game_id integer NOT NULL, tournament_id integer NOT NULL, first_checked date)', (err) => {
-    if(err) throw err
-    console.log('incomplete table created in database')
-  })
-}
-
-const createPositionTable = () => {
+const createTables = () => {
   pool.query('CREATE TABLE position (page integer NOT NULL, length integer NOT NULL)', (err) => {
     if(err) throw err
     console.log('position table created in database')
@@ -205,19 +185,25 @@ const createPositionTable = () => {
       console.log('inserted (page: 1, length: 0) into position')
     })
   })
-}
-
-const createMatchupsTable = () => {
-  pool.query('CREATE TABLE matchups (faction text, agenda text, oppfaction text, oppagenda text, wins integer NOT NULL, losses integer NOT NULL)', (err) => {
+  pool.query('CREATE TABLE games (winner_id integer, winner_faction text, winner_agenda text, loser_id integer, loser_faction text, loser_agenda text, tournament_date date, tournament_id integer)', (err) => {
     if(err) throw err
-    console.log('matchups table created in database')
+    console.log('games table created in database')
   })
-}
-
-const createPlayersTable = () => {
+  pool.query('CREATE TABLE decks (faction text, agenda text, wins integer NOT NULL, losses integer NOT NULL)', (err) => {
+    if(err) throw err
+    console.log('decks table created in database')
+  })
+  pool.query('CREATE TABLE incomplete (game_id integer NOT NULL, tournament_id integer NOT NULL, first_checked date)', (err) => {
+    if(err) throw err
+    console.log('incomplete table created in database')
+  })
   pool.query('CREATE TABLE players (id integer NOT NULL, name text NOT NULL, wins integer NOT NULL, losses integer NOT NULL, rating decimal NOT NULL, percent decimal NOT NULL, played integer NOT NULL, peak decimal NOT NULL)', (err) => {
     if(err) throw err
     console.log('players table created in database')
+  })
+  pool.query('CREATE TABLE matchups (faction text, agenda text, oppfaction text, oppagenda text, wins integer NOT NULL, losses integer NOT NULL)', (err) => {
+    if(err) throw err
+    console.log('matchups table created in database')
   })
 }
 
@@ -359,6 +345,7 @@ const refresh = () => {
   setTimeout(() => {
     console.log(new Date().toUTCString() + ' checking thejoustingpavilion')
     checkTJP()
+    checkAllIncomplete()
     refresh()
   }, time)
 }
@@ -440,12 +427,36 @@ const checkTJP = () => {
   })
 }
 
-const checkIncompleteTournament = (tournament_id) => {
+const checkAllIncomplete = () => {
+  const isEmpty = (obj) => {
+    for(let key in obj){
+      if(obj.hasOwnProperty(key)){
+        return false
+      }
+      return true
+    }
+  }
+  let expired = []
+  for(let tournament_id in incomplete){
+    checkIncompleteTournament(tournament_id, expired)
+  }
+  expired.forEach((game) => {
+    delete incomplete[game.tournament_id][game.game_id]
+    pool.query('DELETE FROM incomplete WHERE game_id = $1', [game.game_id], (err) => {
+      if(err) throw err
+    })
+    if(isEmpty(incomplete[game.tournament_id])){
+      delete incomplete[game.tournament_id]
+    }
+  })
+}
+
+const checkIncompleteTournament = (tournament_id, expired) => {
   let count = 1
-  let arr = []
+  let games_array = []
   let incompleteTjp = () => {
     getJson(url + '?page=' + count + 'tournament_id=' + tournament_id, (err, games) => {
-      arr.push([...games])
+      games_array.push([...games])
       if(games.length == 50){
         count++
         incompleteTjp()
@@ -453,8 +464,20 @@ const checkIncompleteTournament = (tournament_id) => {
     })
   }
   incompleteTjp()
-  console.log(arr.length)
-  // do stuff to things. descriptive, i know.
+  console.log(games_array.length)
+  for(let game_id in incomplete[tournament_id]){
+    games_array.forEach((game) => {
+      if(game.game_id == game_id){
+        if(game.game_status != 100){
+          // check how old
+        }
+        else{
+          processGame(game)
+          expired.push({tournament_id: tournament_id, game_id: game_id})
+        }
+      }
+    })
+  }
 }
 
 const checkGameDecksAndMatchups = (faction, agenda, oppfaction, oppagenda) => {
@@ -698,9 +721,17 @@ const incompleteGame = (game_id, tournament_id) => {
     })
     callback()
   })
-  incomplete[game_id] = {
-    tournament_id: tournament_id,
-    first_checked: new Date()
+  if(!(incomplete[tournament_id])){
+    incomplete[tournament_id] = {
+      [game_id]: {
+        first_checked: new Date()
+      }
+    }
+  }
+  else{
+    incomplete[tournament_id][game_id] = {
+      first_checked: new Date()
+    }
   }
 }
 

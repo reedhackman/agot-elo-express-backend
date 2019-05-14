@@ -1,26 +1,29 @@
 const express = require('express')
 const router = express.Router()
 
-const db = require('./queries.js')
+const getAllGames = require('./queries/getAllGames.js')
+const getSpecificPlayer = require('./queries/getSpecificPlayer.js')
+const getAllPlayers = require('./queries/getAllPlayers.js')
+const getAllDecks = require('./queries/getAllDecks.js')
+const getDecksByFaction = require('./queries/getDecksByFaction.js')
+const getAllMatchups = require('./queries/getAllMatchups.js')
+const getSpecificMatchup = require('./queries/getSpecificMatchup.js')
+const getTop5Faction = require('./queries/getTop5Faction')
 
-router.get('/games', db.getAllGames)
+router.get('/games', getAllGames)
 
-router.get('/games/players/:id', db.getSpecificPlayerFromGames)
+router.get('/games/players/:id', getSpecificPlayer)
 
-router.get('/players', db.getAllPlayers)
+router.get('/games/matchups/:faction/:agenda/:oppfaction/:oppagenda', getSpecificMatchup)
 
-router.get('/players/:id', db.getSpecificPlayer)
+router.get('/players', getAllPlayers)
 
-router.get('/decks', db.getAllDecks)
+router.get('/decks', getAllDecks)
 
-router.get('/decks/:faction', db.getDecksByFaction)
+router.get('/decks/:faction', getDecksByFaction)
 
-router.get('/decks/:faction/:agenda', db.getSpecificDeck)
+router.get('/matchups', getAllMatchups)
 
-router.get('/matchups', db.getAllMatchups)
-
-router.get('/matchups/:faction/:agenda/:oppfaction/:oppagenda', db.getSpecificMatchup)
-
-router.get('/top5faction/:faction', db.getTop5Faction)
+router.get('/top5faction/:faction', getTop5Faction)
 
 module.exports = router
