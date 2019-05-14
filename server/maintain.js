@@ -13,7 +13,7 @@ const pool = new Pool({
 
 let page = 1
 let length = 0
-const url = 'https://thejoustingpavilion.com/api/v3/games?page='
+const url = 'https://thejoustingpavilion.com/api/v3/games'
 let newGames = []
 let createPlayersArray = []
 let playersToUpdate = []
@@ -25,6 +25,7 @@ let createMatchupsArray = []
 let matchupsToUpdate = {}
 let updateMatchupsArray = []
 let createGamesArray = []
+let createIncompleteArray = []
 let players = {}
 let matchups = {}
 let decks = {}
@@ -34,7 +35,6 @@ let tournamentsToExclude = []
 
 pool.query('SELECT * FROM position', (err, data) => {
   if(err){
-    console.log(err)
     createPositionTable()
     createPlayersTable()
     createMatchupsTable()
@@ -60,16 +60,13 @@ pool.query('SELECT * FROM position', (err, data) => {
 
 const populateIncomplete = () => {
   pool.query('SELECT * FROM incomplete', (err, data) => {
-    if(err){
-      console.log(err)
-      createIncompleteTable()
-    }
+    if(err) throw err
     if(data.rows.length){
       data.rows.forEach((game) => {
         if(!(incomplete[game.game_id])){
           incomplete[game.game_id] = {
             tournament_id: game.tournament_id,
-            tournament_date: game.tournament_date
+            first_checked: game.first_checked
           }
         }
       })
@@ -79,10 +76,7 @@ const populateIncomplete = () => {
 
 const populateMatchups = () => {
   pool.query('SELECT * FROM matchups', (err, data) => {
-    if(err){
-      console.log(err)
-      createMatchupsTable()
-    }
+    if(err) throw err
     if(data.rows.length){
       data.rows.forEach((matchup) => {
         if(!(matchups[matchup.faction])){
@@ -132,10 +126,7 @@ const populateMatchups = () => {
 
 const populateDecks = () => {
   pool.query('SELECT * FROM decks', (err, data) => {
-    if(err){
-      console.log(err)
-      createDecksTable()
-    }
+    if(err) throw err
     if(data.rows.length){
       data.rows.forEach((deck) => {
         if(!(decks[deck.faction])){
@@ -163,10 +154,7 @@ const populateDecks = () => {
 
 const populatePlayers = () => {
   pool.query('SELECT * FROM players', (err, data) => {
-    if(err){
-      console.log(err)
-      createPlayersTable()
-    }
+    if(err) throw err
     if(data.rows.length){
       data.rows.forEach((player) => {
         if(!(players[player.id])){
@@ -202,7 +190,7 @@ const createDecksTable = () => {
 }
 
 const createIncompleteTable = () => {
-  pool.query('CREATE TABLE incomplete (game_id integer NOT NULL, tournament_id integer NOT NULL, tournament_date date)', (err) => {
+  pool.query('CREATE TABLE incomplete (game_id integer NOT NULL, tournament_id integer NOT NULL, first_checked date)', (err) => {
     if(err) throw err
     console.log('incomplete table created in database')
   })
@@ -376,7 +364,7 @@ const refresh = () => {
 }
 
 const checkTJP = () => {
-  getJson(url + page, (err, games) => {
+  getJson(url + '?page=' + page, (err, games) => {
     if(err) throw err
     console.log('page ' + page + ' length ' + games.length)
     if(games.length > length){
@@ -416,6 +404,9 @@ const checkTJP = () => {
         const asyncCreateGames = (callback) => {
           async.series(createGamesArray, callback)
         }
+        const asyncCreateIncomplete = (callback) => {
+          async.series(createIncompleteArray, callback)
+        }
         const asyncUpdatePosition = (callback) => {
           pool.query('UPDATE position SET page = $1, length = $2', [page, length], (err) => {
             if(err) throw err
@@ -433,7 +424,8 @@ const checkTJP = () => {
           asyncCreatePlayers,
           asyncCreateMatchups,
           asyncCreateDecks,
-          asyncCreateGames
+          asyncCreateGames,
+          asyncCreateIncomplete
         ])
         setTimeout(() => {
           async.series([
@@ -446,6 +438,23 @@ const checkTJP = () => {
       }
     }
   })
+}
+
+const checkIncompleteTournament = (tournament_id) => {
+  let count = 1
+  let arr = []
+  let incompleteTjp = () => {
+    getJson(url + '?page=' + count + 'tournament_id=' + tournament_id, (err, games) => {
+      arr.push([...games])
+      if(games.length == 50){
+        count++
+        incompleteTjp()
+      }
+    })
+  }
+  incompleteTjp()
+  console.log(arr.length)
+  // do stuff to things. descriptive, i know.
 }
 
 const checkGameDecksAndMatchups = (faction, agenda, oppfaction, oppagenda) => {
@@ -682,6 +691,19 @@ const processGamePlayers = (winner, loser) => {
   }
 }
 
+const incompleteGame = (game_id, tournament_id) => {
+  createIncompleteArray.push((callback) => {
+    pool.query('INSERT INTO incomplete (game_id, tournament_id) VALUES ($1, $2)', [game_id, tournament_id], (err, data) => {
+      if(err) throw err
+    })
+    callback()
+  })
+  incomplete[game_id] = {
+    tournament_id: tournament_id,
+    first_checked: new Date()
+  }
+}
+
 const processGame = (game) => {
   if(tournamentsToExclude.includes(game.tournament_id)){
     return
@@ -690,14 +712,7 @@ const processGame = (game) => {
     return
   }
   if(game.game_status != 100){
-    pool.query('INSERT INTO incomplete (game_id, tournament_id, tournament_date) VALUES ($1, $2, $3)', [game.game_id, game.tournament_id, game.tournament_date], (err, data) => {
-      if(err) throw err
-      console.log('incomplete game: ' + game.game_id)
-    })
-    incomplete[game.game_id] = {
-      tournament_id: game.tournament_id,
-      tournament_date: game.tournament_date
-    }
+    incompleteGame(game.game_id, game.tournament_id)
     return
   }
   let winner = {}
