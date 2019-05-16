@@ -30,6 +30,6 @@ router.get('/top5faction/:faction', getTop5Faction)
 
 router.get('/tournaments/all', getAllTournaments)
 
-router.get('/tournaments/ids/:idsArray', getMultipleTournamentsById)
+router.get('/tournaments/ids/:idsArray/:id', getMultipleTournamentsById)
 
 module.exports = router

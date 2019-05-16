@@ -27,6 +27,8 @@ let updateMatchupsArray = []
 let createGamesArray = []
 let createIncompleteArray = []
 let createTournamentsArray = []
+let tournamentsToUpdate = []
+let updateTournamentsArray = []
 let tournaments = {}
 let players = {}
 let matchups = {}
@@ -224,7 +226,7 @@ const createTables = () => {
     if(err) throw err
     console.log('matchups table created in database')
   })
-  pool.query('CREATE TABLE tournaments (tournament_id integer NOT NULL, tournament_name text NOT NULL, tournament_date date)', (err) => {
+  pool.query('CREATE TABLE tournaments (tournament_id integer NOT NULL, tournament_name text NOT NULL, tournament_date date, players integer ARRAY)', (err) => {
     if(err) throw err
     console.log('tournaments table created in database')
   })
@@ -354,13 +356,36 @@ const updateAllPlayers = () => {
     updatePlayersArray.push((callback) => {
       let wins = players[id].wins
       let losses = players[id].losses
-      pool.query('UPDATE players SET wins = $1, losses = $2, rating = $3, percent = $5, played = $6, peak = $7 WHERE id = $4', [wins, losses, players[id].rating, id, wins / (wins + losses), wins + losses, players[id].peak], (err, data) => {
+      pool.query('UPDATE players SET wins = $1, losses = $2, rating = $3, percent = $5, played = $6, peak = $7 WHERE id = $4', [wins, losses, players[id].rating, id, wins / (wins + losses), wins + losses, players[id].peak], (err) => {
         if(err) throw err
       })
       callback()
     })
   })
   playersToUpdate = []
+}
+
+const updateAllTournaments = () => {
+  tournamentsToUpdate.forEach((tournament_id) => {
+    let sqlPlayers = '{'
+    console.log(tournament_id)
+    getJson('https://thejoustingpavilion.com/api/v3/tournaments/' + tournament_id, (err, data) => {
+      console.log(players)
+      sqlPlayers += data[0].player_id
+      for(let i = 1; i < data.length; data++){
+        sqlPlayers += ', ' + data[0].player_id
+      }
+      sqlPlayers += '}'
+      updateTournamentsArray.push((callback) => {
+        pool.query('UPDATE tournaments SET players = $2 WHERE tournament_id = $1', [tournament_id, sqlPlayers], (err) => {
+          if(err) throw err
+        })
+        callback()
+      })
+    })
+
+  })
+  tournamentsToUpdate = []
 }
 
 const refresh = () => {
@@ -399,6 +424,7 @@ const checkTJP = () => {
         updateAllPlayers()
         updateAllMatchups()
         updateAllDecks()
+        updateAllTournaments()
         const asyncCreatePlayers = (callback) => {
           async.series(createPlayersArray, callback)
         }
@@ -419,6 +445,9 @@ const checkTJP = () => {
         }
         const asyncCreateTournaments = (callback) => {
           async.series(createTournamentsArray, callback)
+        }
+        const asyncUpdateTournaments = (callback) => {
+          async.series(updateTournamentsArray, callback)
         }
         const asyncUpdatePosition = (callback) => {
           pool.query('UPDATE position SET page = $1, length = $2', [page, length], (err) => {
@@ -446,12 +475,21 @@ const checkTJP = () => {
             asyncUpdatePlayers,
             asyncUpdateDecks,
             asyncUpdateMatchups,
-            asyncUpdatePosition
+            asyncUpdatePosition,
+            asyncUpdateTournaments
           ])
         }, 1000 * 60 * 1)
+        clearUpdateArrays()
       }
     }
   })
+}
+
+const clearUpdateArrays = () => {
+  updatePlayersArray = []
+  updateDecksArray = []
+  updateMatchupsArray = []
+  updateTournamentsArray = []
 }
 
 const checkAllIncomplete = () => {
@@ -844,6 +882,9 @@ const testGame = (game) => {
         })
         callback()
       })
+    }
+    if(!(tournamentsToUpdate.includes(game.tournament_id))){
+      tournamentsToUpdate.push(game.tournament_id)
     }
   }
 }
