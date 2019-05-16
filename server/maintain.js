@@ -26,6 +26,8 @@ let matchupsToUpdate = {}
 let updateMatchupsArray = []
 let createGamesArray = []
 let createIncompleteArray = []
+let createTournamentsArray = []
+let tournaments = {}
 let players = {}
 let matchups = {}
 let decks = {}
@@ -45,6 +47,7 @@ pool.query('SELECT * FROM position', (err, data) => {
     populateDecks()
     populateMatchups()
     populateIncomplete()
+    populateTournaments()
   }
   console.log(new Date().toUTCString() + ' checking thejoustingpavilion in 1 minute')
   setTimeout(() => {
@@ -52,6 +55,22 @@ pool.query('SELECT * FROM position', (err, data) => {
   }, 1000 * 60 * 1)
   refresh()
 })
+
+const populateTournaments = () => {
+  pool.query('SELECT * FROM tournaments', (err, data) => {
+    if(err) throw err
+    if(data.rows.length){
+      data.rows.forEach((tournament) => {
+        if(!(tournaments[tournament.tournament_id])){
+          tournaments[tournament.tournament_id] = {
+            tournament_name: tournament.tournament_name,
+            tournament_date: tournament.tournament_date
+          }
+        }
+      })
+    }
+  })
+}
 
 const populateIncomplete = () => {
   pool.query('SELECT * FROM incomplete', (err, data) => {
@@ -205,6 +224,10 @@ const createTables = () => {
     if(err) throw err
     console.log('matchups table created in database')
   })
+  pool.query('CREATE TABLE tournaments (tournament_id integer NOT NULL, tournament_name text NOT NULL, tournament_date date)', (err) => {
+    if(err) throw err
+    console.log('tournaments table created in database')
+  })
 }
 
 const createDeck = (faction, agenda) => {
@@ -354,7 +377,7 @@ const checkTJP = () => {
   getJson(url + '?page=' + page, (err, games) => {
     if(err) throw err
     console.log('page ' + page + ' length ' + games.length)
-    if(games.length > length){
+    if(games.length > length || newGames.length){
       for(var i = length; i < games.length; i++){
         newGames.push(games[i])
       }
@@ -394,6 +417,9 @@ const checkTJP = () => {
         const asyncCreateIncomplete = (callback) => {
           async.series(createIncompleteArray, callback)
         }
+        const asyncCreateTournaments = (callback) => {
+          async.series(createTournamentsArray, callback)
+        }
         const asyncUpdatePosition = (callback) => {
           pool.query('UPDATE position SET page = $1, length = $2', [page, length], (err) => {
             if(err) throw err
@@ -412,7 +438,8 @@ const checkTJP = () => {
           asyncCreateMatchups,
           asyncCreateDecks,
           asyncCreateGames,
-          asyncCreateIncomplete
+          asyncCreateIncomplete,
+          asyncCreateTournaments
         ])
         setTimeout(() => {
           async.series([
@@ -805,5 +832,18 @@ const testGame = (game) => {
   }
   else if(game.p1_agenda == 'The Power of Wealth' || game.p1_agenda == "Treaty" || game.p1_agenda == 'Uniting the Seven Kingdoms' || game.p1_agenda == 'Protectors of the Realm' || game.p2_agenda == 'The Power of Wealth' || game.p2_agenda == "Treaty" || game.p2_agenda == 'Uniting the Seven Kingdoms' || game.p2_agenda == 'Protectors of the Realm'){
     tournamentsToExclude.push(game.tournament_id)
+  }
+  else{
+    if(!(tournaments[game.tournament_id])){
+      tournaments[game.tournament_id] = {
+        tournament_name: game.tournament_name
+      }
+      createTournamentsArray.push((callback) => {
+        pool.query('INSERT INTO tournaments (tournament_id, tournament_name, tournament_date) VALUES ($1, $2, $3)', [game.tournament_id, game.tournament_name, game.tournament_date], (err) => {
+          if(err) throw err
+        })
+        callback()
+      })
+    }
   }
 }
