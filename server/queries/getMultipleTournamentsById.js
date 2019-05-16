@@ -8,6 +8,7 @@ const getMultipleTournamentsById = (req, res) => {
     for(let i = 1; i < idsArray.length; i++){
       sqlString += ' OR tournament_id = ' + idsArray[i]
     }
+    sqlString += ' ORDER BY tournament_date'
   }
   pool.query(sqlString, (err, data) => {
     if(err) throw err
