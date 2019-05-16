@@ -71,6 +71,7 @@ const populateTournaments = () => {
         }
       })
     }
+    console.log('loaded tournaments')
   })
 }
 
@@ -93,6 +94,7 @@ const populateIncomplete = () => {
         }
       })
     }
+    console.log('loaded incomplete')
   })
 }
 
@@ -367,13 +369,12 @@ const updateAllPlayers = () => {
 
 const updateAllTournaments = () => {
   tournamentsToUpdate.forEach((tournament_id) => {
-    let sqlPlayers = '{'
-    console.log(tournament_id)
-    getJson('https://thejoustingpavilion.com/api/v3/tournaments/' + tournament_id, (err, data) => {
-      console.log(players)
-      sqlPlayers += data[0].player_id
-      for(let i = 1; i < data.length; data++){
-        sqlPlayers += ', ' + data[0].player_id
+    getJson('https://thejoustingpavilion.com/api/v3/tournaments/' + tournament_id, (err, tournament_data) => {
+      if(err) throw err
+      let sqlPlayers = '{'
+      sqlPlayers += tournament_data[0].player_id
+      for(let i = 1; i < tournament_data.length; i++){
+        sqlPlayers += ', ' + tournament_data[i].player_id
       }
       sqlPlayers += '}'
       updateTournamentsArray.push((callback) => {
@@ -529,7 +530,6 @@ const checkIncompleteTournament = (tournament_id, expired) => {
     })
   }
   incompleteTjp()
-  console.log(games_array.length)
   for(let game_id in incomplete[tournament_id]){
     games_array.forEach((game) => {
       if(game.game_id == game_id){
