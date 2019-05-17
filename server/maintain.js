@@ -52,14 +52,14 @@ pool.query('SELECT * FROM position', (err, data) => {
     populateTournaments()
   }
   console.log(new Date().toUTCString() + ' checking thejoustingpavilion in 1 minute')
+  refresh()
   setTimeout(() => {
     checkTJP()
   }, 1000 * 60 * 1)
-  refresh()
 })
 
 const populateTournaments = () => {
-  pool.query('SELECT * FROM tournaments', (err, data) => {
+  pool.query('SELECT tournament_id, tournament_name, tournament_date FROM tournaments', (err, data) => {
     if(err) throw err
     if(data.rows.length){
       data.rows.forEach((tournament) => {
@@ -409,6 +409,11 @@ const updateAllTournaments = () => {
 const refresh = () => {
   const time = 1000 * 60 * 60 * 24 // 1 day
   setTimeout(() => {
+    updatePlayersArray = []
+    updateDecksArray = []
+    updateMatchupsArray = []
+    updateTournamentsArray = []
+    console.log('cleared update arrays')
     console.log(new Date().toUTCString() + ' checking thejoustingpavilion')
     checkTJP()
     checkAllIncomplete()
@@ -493,7 +498,6 @@ const checkTJP = () => {
           ])
         }, 1000 * 60 * 1)
         updateAllTournaments()
-        clearUpdateArrays()
       }
     }
   })
