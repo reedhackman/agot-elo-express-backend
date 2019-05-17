@@ -402,11 +402,7 @@ const updateAllTournaments = () => {
       }
     })
   }
-  const time = 1000 * 5 // 5s
-  setTimeout(() => {
-    console.log('trying now')
-    tjp_tournament()
-  }, time)
+  tjp_tournament()
   tournamentsToUpdate = []
 }
 
