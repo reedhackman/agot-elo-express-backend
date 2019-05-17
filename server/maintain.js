@@ -368,8 +368,12 @@ const updateAllPlayers = () => {
 }
 
 const updateAllTournaments = () => {
-  tournamentsToUpdate.forEach((tournament_id) => {
-    getJson('https://thejoustingpavilion.com/api/v3/tournaments/' + tournament_id, (err, tournament_data) => {
+  let i = 0
+  let t = [...tournamentsToUpdate]
+  let tjp_tournament = () => {
+    getJson('https://thejoustingpavilion.com/api/v3/tournaments/' + t[i], (err, tournament_data) => {
+      console.log('https://thejoustingpavilion.com/api/v3/tournaments/' + t[i] + ' ' + tournament_data.length + ' players')
+      let id = t[i]
       if(err) throw err
       let sqlPlayers = '{'
       sqlPlayers += tournament_data[0].player_id
@@ -378,14 +382,31 @@ const updateAllTournaments = () => {
       }
       sqlPlayers += '}'
       updateTournamentsArray.push((callback) => {
-        pool.query('UPDATE tournaments SET players = $2 WHERE tournament_id = $1', [tournament_id, sqlPlayers], (err) => {
+        pool.query('UPDATE tournaments SET players = $2 WHERE tournament_id = $1', [id, sqlPlayers], (err) => {
           if(err) throw err
         })
         callback()
       })
+      i++
+      if(i < t.length){
+        tjp_tournament()
+      }
+      else{
+        const asyncUpdateTournaments = (callback) => {
+          async.series(updateTournamentsArray, callback)
+        }
+        async.series([
+          asyncUpdateTournaments
+        ])
+        tournamentsToUpdate = []
+      }
     })
-
-  })
+  }
+  const time = 1000 * 5 // 5s
+  setTimeout(() => {
+    console.log('trying now')
+    tjp_tournament()
+  }, time)
   tournamentsToUpdate = []
 }
 
@@ -425,7 +446,6 @@ const checkTJP = () => {
         updateAllPlayers()
         updateAllMatchups()
         updateAllDecks()
-        updateAllTournaments()
         const asyncCreatePlayers = (callback) => {
           async.series(createPlayersArray, callback)
         }
@@ -446,9 +466,6 @@ const checkTJP = () => {
         }
         const asyncCreateTournaments = (callback) => {
           async.series(createTournamentsArray, callback)
-        }
-        const asyncUpdateTournaments = (callback) => {
-          async.series(updateTournamentsArray, callback)
         }
         const asyncUpdatePosition = (callback) => {
           pool.query('UPDATE position SET page = $1, length = $2', [page, length], (err) => {
@@ -476,10 +493,10 @@ const checkTJP = () => {
             asyncUpdatePlayers,
             asyncUpdateDecks,
             asyncUpdateMatchups,
-            asyncUpdatePosition,
-            asyncUpdateTournaments
+            asyncUpdatePosition
           ])
         }, 1000 * 60 * 1)
+        updateAllTournaments()
         clearUpdateArrays()
       }
     }
@@ -490,7 +507,6 @@ const clearUpdateArrays = () => {
   updatePlayersArray = []
   updateDecksArray = []
   updateMatchupsArray = []
-  updateTournamentsArray = []
 }
 
 const checkAllIncomplete = () => {
