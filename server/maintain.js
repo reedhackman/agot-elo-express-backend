@@ -37,26 +37,27 @@ let incomplete = {}
 let exclude = ['draft', 'keyforge', 'destiny', 'l5r']
 let tournamentsToExclude = []
 
-pool.query('SELECT * FROM position', (err, data) => {
-  if(err){
-    createTables()
-  }
-  else{
-    page = data.rows[0].page
-    length = data.rows[0].length
-    console.log(`page: ${page}, length: ${length}`)
-    populatePlayers()
-    populateDecks()
-    populateMatchups()
-    populateIncomplete()
-    populateTournaments()
-  }
-  console.log(new Date().toUTCString() + ' checking thejoustingpavilion in 1 minute')
-  refresh()
-  setTimeout(() => {
-    checkTJP()
-  }, 1000 * 60 * 1)
-})
+const initiateDB = () => {
+  pool.query('SELECT * FROM position', (err, data) => {
+    if(err){
+      createTables()
+    }
+    else{
+      page = data.rows[0].page
+      length = data.rows[0].length
+      console.log(`page: ${page}, length: ${length}`)
+      populatePlayers()
+      populateDecks()
+      populateMatchups()
+      populateIncomplete()
+      populateTournaments()
+    }
+    console.log(new Date().toUTCString() + ' checking thejoustingpavilion in 1 minute')
+    setTimeout(() => {
+      checkTJP()
+    }, 1000 * 60 * 1)
+  })
+}
 
 const populateTournaments = () => {
   pool.query('SELECT tournament_id, tournament_name, tournament_date FROM tournaments', (err, data) => {
@@ -71,7 +72,6 @@ const populateTournaments = () => {
         }
       })
     }
-    console.log('loaded tournaments')
   })
 }
 
@@ -94,7 +94,6 @@ const populateIncomplete = () => {
         }
       })
     }
-    console.log('loaded incomplete')
   })
 }
 
@@ -143,7 +142,6 @@ const populateMatchups = () => {
           console.log('duplicate matchup')
         }
       })
-      console.log('loaded matchups from db')
     }
   })
 }
@@ -171,7 +169,6 @@ const populateDecks = () => {
           console.log('duplicate deck')
         }
       })
-      console.log('loaded decks from db')
     }
   })
 }
@@ -194,7 +191,6 @@ const populatePlayers = () => {
           }
         }
       })
-      console.log('loaded players from db')
     }
   })
 }
@@ -406,21 +402,6 @@ const updateAllTournaments = () => {
   tournamentsToUpdate = []
 }
 
-const refresh = () => {
-  const time = 1000 * 60 * 60 * 24 // 1 day
-  setTimeout(() => {
-    updatePlayersArray = []
-    updateDecksArray = []
-    updateMatchupsArray = []
-    updateTournamentsArray = []
-    console.log('cleared update arrays')
-    console.log(new Date().toUTCString() + ' checking thejoustingpavilion')
-    checkTJP()
-    checkAllIncomplete()
-    refresh()
-  }, time)
-}
-
 const checkTJP = () => {
   getJson(url + '?page=' + page, (err, games) => {
     if(err) throw err
@@ -498,6 +479,10 @@ const checkTJP = () => {
           ])
         }, 1000 * 60 * 1)
         updateAllTournaments()
+        updatePlayersArray = []
+        updateDecksArray = []
+        updateMatchupsArray = []
+        updateTournamentsArray = []
       }
     }
   })
@@ -903,4 +888,9 @@ const testGame = (game) => {
       tournamentsToUpdate.push(game.tournament_id)
     }
   }
+}
+
+module.exports = {
+  initiateDB,
+  checkTJP
 }
